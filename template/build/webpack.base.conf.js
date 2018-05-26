@@ -101,9 +101,7 @@ keyList.forEach(function (v, i) {
 
 module.exports = {
   context: path.resolve(__dirname, '../'),
-  entry: {
-    app: './src/main.js'
-  },
+  entry: entry,
   plugins: plugins.concat(htmlPluginList).concat(entryPluginList),
   output: {
     path: config.build.assetsRoot,

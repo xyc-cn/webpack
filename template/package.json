@@ -25,8 +25,8 @@
     "build": "webpack --config build/webpack.prod.conf.js --p --progress"
   },
   "dependencies": {
-    "vue": "^2.5.2"{{#router}},
-    "vue-router": "^3.0.1"{{/router}}
+    "vue": "^2.5.2",
+    "vue-router": "^3.0.1"
   },
   "devDependencies": {
     {{#lint}}

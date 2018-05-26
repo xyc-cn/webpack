@@ -1,8 +1,13 @@
 'use strict'
 const path = require('path')
 const utils = require('./utils')
+const fs = require('fs-extra');
 const config = require('../config')
 const vueLoaderConfig = require('./vue-loader.conf')
+const VirtualModulePlugin = require('virtual-module-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const isProd = process.env.NODE_ENV === 'production';
+const entry = {};
 
 function resolve (dir) {
   return path.join(__dirname, '..', dir)
@@ -19,11 +24,87 @@ function resolve (dir) {
   }
 }){{/lint}}
 
+
+/**
+ * generate entry
+ * @param dir
+ */
+const walk = (dir) => {
+  dir = dir || '.';
+  const directory = path.posix.join(__dirname, '../src', dir);
+  fs.readdirSync(directory).forEach((file) => {
+    const fullpath = path.posix.join(directory, file);
+  const stat = fs.statSync(fullpath);
+  const extname = path.posix.extname(fullpath);
+  if (stat.isFile() && extname === '.vue' && fullpath.indexOf('v_entry') >= 0) {
+    const name = path.posix.join(dir, path.posix.basename(file, extname));
+    if (fullpath.indexOf('v_entry') >= 0) {
+      entry[name] = './' + fullpath;
+    }
+  } else if (stat.isDirectory() && file !== 'build' && file !== 'include') {
+    const subdir = path.posix.join(dir, file);
+    walk(subdir);
+  }
+});
+}
+
+walk('pages');
+
+console.log(entry)
+
+const plugins = [];
+
+let htmlPluginList = [],entryPluginList=[];
+//处理entry
+let keyList = Object.keys(entry);
+keyList.forEach(function (v, i) {
+  let reg = v.match(/pages\/(.*)\/(.*)\//), pageName, moduleName;
+  if (reg) {
+    pageName = reg[2];
+    moduleName = reg[1];
+  } else {
+    throw new Error('entry error')
+  }
+  htmlPluginList.push(new HtmlWebpackPlugin({
+    template: 'template/index.dev.html',
+    title: '',
+    // isDevServer: true,
+    filename: 'pages/' + moduleName + '/' + pageName + '.html',
+    chunks: [v],
+    chunksSortMode: 'dependency',
+    minify: isProd ? {
+      removeComments: true,
+      collapseWhitespace: true,
+      removeAttributeQuotes: true
+    } : false,
+    hash: true,
+    inject: true
+  }));
+  entry[v] = entry[v].replace('.vue','.js');
+
+  if(!fs.existsSync(path.join(process.cwd(),'src/' + v + '.js'))){
+    //use virtual plugin
+    entryPluginList.push(
+      new VirtualModulePlugin({
+        moduleName: entry[v],
+        contents:  `/* eslint-disable */
+                  import App from './v_entry.vue'
+                  import Vue from 'vue'
+                  App.el = '#root';
+                  let app = new Vue(
+                       App
+                  );`,
+      }),
+    );
+  }
+});
+
 module.exports = {
   context: path.resolve(__dirname, '../'),
   entry: {
     app: './src/main.js'
   },
+  plugins: plugins.concat(htmlPluginList).concat(entryPluginList),
   output: {
     path: config.build.assetsRoot,
     filename: '[name].js',
